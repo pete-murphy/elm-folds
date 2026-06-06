@@ -6,6 +6,9 @@ module Fold exposing
     , and, or, all, any
     , sum, product
     , maximum, minimum
+    , average
+    , mean, variance, standardDeviation
+    , sampleVariance, sampleStandardDeviation
     , elem, notElem
     , map, map2, map3, map4, map5, map6, andMap
     , extend
@@ -57,6 +60,19 @@ This library is based on the [`foldl`][foldl] library by Gabriella Gonzalez.
 @docs and, or, all, any
 @docs sum, product
 @docs maximum, minimum
+
+
+# Statistical folds
+
+Numerically stable single-pass statistics, computed via
+[Welford's online algorithm][welford]. All return `Maybe` to keep the empty
+(and, for sample-based folds, singleton) cases honest.
+
+[welford]: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+
+@docs average
+@docs mean, variance, standardDeviation
+@docs sampleVariance, sampleStandardDeviation
 @docs elem, notElem
 
 
@@ -264,6 +280,131 @@ minimum =
                 Just b ->
                     Just (min a b)
         )
+
+
+{-| A `Fold` which computes the arithmetic mean as `sum / length`. Returns
+`NaN` for the empty list.
+
+Compared to [`mean`](#mean), this commits to a single final division and so
+is slightly more accurate on well-scaled inputs — but `sum` can overflow to
+`Infinity` when many large values are combined. Prefer [`mean`](#mean) when
+you also need a [`variance`](#variance) (the state is shared via `map2`), or
+when overflow is a concern, or when you want `Maybe` semantics on empty
+input.
+
+    average : Fold Float Float
+    average =
+        map2 (/) sum length
+
+-}
+average : Fold Float Float
+average =
+    map2 (/) sum length
+
+
+{-| Internal state for Welford's online algorithm: count, running mean, and
+the running sum of squared deviations from the mean (`M2`).
+-}
+type alias Welford =
+    { n : Int, mean_ : Float, m2 : Float }
+
+
+emptyWelford : Welford
+emptyWelford =
+    { n = 0, mean_ = 0.0, m2 = 0.0 }
+
+
+stepWelford : Float -> Welford -> Welford
+stepWelford x { n, mean_, m2 } =
+    let
+        n_ =
+            n + 1
+
+        delta =
+            x - mean_
+
+        newMean =
+            mean_ + delta / toFloat n_
+
+        delta2 =
+            x - newMean
+    in
+    { n = n_, mean_ = newMean, m2 = m2 + delta * delta2 }
+
+
+welford : Fold Float Welford
+welford =
+    unfoldFold_ emptyWelford stepWelford
+
+
+{-| A `Fold` which computes the arithmetic mean of its inputs via Welford's
+online algorithm, or `Nothing` if there were no inputs.
+
+The running mean stays bounded by the data's range (so it never overflows)
+and shares state with [`variance`](#variance) and friends when combined via
+`map2`. For a one-shot mean of well-scaled data, [`average`](#average) is
+simpler and slightly more accurate.
+
+-}
+mean : Fold Float (Maybe Float)
+mean =
+    map
+        (\w ->
+            if w.n == 0 then
+                Nothing
+
+            else
+                Just w.mean_
+        )
+        welford
+
+
+{-| A `Fold` which computes the population variance of its inputs, or
+`Nothing` if there were no inputs. For a singleton input the variance is `0`.
+-}
+variance : Fold Float (Maybe Float)
+variance =
+    map
+        (\w ->
+            if w.n == 0 then
+                Nothing
+
+            else
+                Just (w.m2 / toFloat w.n)
+        )
+        welford
+
+
+{-| A `Fold` which computes the population standard deviation of its inputs,
+or `Nothing` if there were no inputs.
+-}
+standardDeviation : Fold Float (Maybe Float)
+standardDeviation =
+    map (Maybe.map sqrt) variance
+
+
+{-| A `Fold` which computes the sample (Bessel-corrected, `n - 1`) variance of
+its inputs, or `Nothing` if fewer than two inputs were seen.
+-}
+sampleVariance : Fold Float (Maybe Float)
+sampleVariance =
+    map
+        (\w ->
+            if w.n < 2 then
+                Nothing
+
+            else
+                Just (w.m2 / toFloat (w.n - 1))
+        )
+        welford
+
+
+{-| A `Fold` which computes the sample standard deviation of its inputs, or
+`Nothing` if fewer than two inputs were seen.
+-}
+sampleStandardDeviation : Fold Float (Maybe Float)
+sampleStandardDeviation =
+    map (Maybe.map sqrt) sampleVariance
 
 
 {-| A `Fold` which tests if a specific value appeared as an input.
