@@ -24,14 +24,6 @@ stats =
         |> Fold.andMap (Fold.map2 (Maybe.map2 Tuple.pair) Fold.minimum Fold.maximum)
 
 
-sepalLengthStatsBySpecies : Dict String Stats
-sepalLengthStatsBySpecies =
-    stats
-        |> Fold.premap .sepalLength
-        |> Fold.groupBy .species
-        |> Fold.foldList irisDataset
-
-
 type alias Iris =
     { sepalLength : Float
     , sepalWidth : Float
@@ -39,6 +31,15 @@ type alias Iris =
     , petalWidth : Float
     , species : String
     }
+
+
+sepalLengthStatsBySpecies : Dict String Stats
+sepalLengthStatsBySpecies =
+    stats
+        |> Fold.premap .sepalLength
+        |> Fold.groupBy .species
+        -- irisDataset : List Iris
+        |> Fold.foldList irisDataset
 
 
 irisDataset : List Iris

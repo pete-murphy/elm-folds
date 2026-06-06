@@ -1,17 +1,47 @@
-# `replaceme` [![Build Status](https://github.com/REPLACEME-AUTHOR-SLASH-REPO/workflows/CI/badge.svg)](https://github.com/REPLACEME-AUTHOR-SLASH-REPO/actions?query=branch%3Amain)
+# `elm-folds`
 
-## What this repo includes
+This library is based on Gabriella Gonzalez' [`foldl` library (in Haskell)](http://hackage.haskell.org/package/foldl).
 
-| What                                                              | Why?                                                                                                                                                                                                          |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| lydell/elm-tooling.json                                           | Install dependencies, cache them for faster GitHub Actions builds.                                                                                                                                            |
-| elm-test                                                          | Basic unit testing boilerplate and runs on GitHub Actions.                                                                                                                                                    |
-| [`jfmengels/elm-review`](https://github.com/jfmengels/elm-review) | Statically analyzes your code to find unused code, etc.                                                                                                                                                       |
-| dillonkearns/elm-publish-action                                   | Publishes your package whenever you bump your package version in elm.json on your default branch (`main` or `master`). It won't publish 1.0.0 for you, but it will release subsequent versions automatically. |
+A `Fold` can either be constructed from combining other `Fold`s using applicative methods (`succeed` & `andMap`) or manually from the low-level `unfoldFold` which takes an initial state, an update function, and a done function (reminiscent of Elm architecture's `init`, `update`, `view`—`Fold` and TEA are both Moore machines).
 
-## Checklist
+Here's an example, getting some summary statistics from the [Iris dataset](https://archive.ics.uci.edu/dataset/53/iris):
 
-- [ ] Replace this with a nice readme (see this guide for designing Elm packages and writing nice docs/READMEs: <https://github.com/dillonkearns/idiomatic-elm-package-guide>)
-- [ ] Find all instances of replaceme in this repo and replace them
-- [ ] Add a file called `LICENSE` to the top-level folder. This is required to publish an Elm package. The most common and recommended license for open source Elm packages is BSD-3.
-- [ ] Publish version 1.0.0 (you have to start at V1 with Elm packages). Run `elm publish` from the root folder of this repo when you're all ready, and it will walk you through the process!
+```elm
+type alias Stats =
+    { length : Int
+    , average : Float
+    , variance : Maybe Float
+    , stddev : Maybe Float
+    , range : Maybe ( Float, Float )
+    }
+
+
+stats : Fold Float Stats
+stats =
+    Fold.succeed Stats
+        |> Fold.andMap Fold.length
+        |> Fold.andMap Fold.average
+        |> Fold.andMap Fold.variance
+        |> Fold.andMap Fold.standardDeviation
+        |> Fold.andMap (Fold.map2 (Maybe.map2 Tuple.pair) Fold.minimum Fold.maximum)
+
+
+type alias Iris =
+    { sepalLength : Float
+    , sepalWidth : Float
+    , petalLength : Float
+    , petalWidth : Float
+    , species : String
+    }
+
+
+sepalLengthStatsBySpecies : Dict String Stats
+sepalLengthStatsBySpecies =
+    stats
+        |> Fold.premap .sepalLength
+        |> Fold.groupBy .species
+        -- irisDataset : List Iris
+        |> Fold.foldList irisDataset
+
+-- Dict.fromList [("setosa",{ average = 5.005999999999999, length = 50, range = Just (4.3,5.8), stddev = Just 0.3489469873777391, variance = Just 0.121764 }),("versicolor",{ average = 5.936, length = 50, range = Just (4.9,7), stddev = Just 0.5109833656783751, variance = Just 0.26110400000000006 }),("virginica",{ average = 6.587999999999998, length = 50, range = Just (4.9,7.9), stddev = Just 0.6294886813914925, variance = Just 0.396256 })]
+```

@@ -607,9 +607,6 @@ function `e -> b`. At every point `e`, the resulting function is the value the
 original fold would have produced from the stream of `a`s obtained by applying
 each input function to `e`.
 
-This is the function-`Distributive` specialisation of the `distributed`
-combinator from Haskell's `foldl` and PureScript's `purescript-folds`.
-
     foldList [ \e -> e + 1, \e -> e * 2, \e -> e - 3 ] (distributed sum) 10
     --> 30  -- == 11 + 20 + 7
 
