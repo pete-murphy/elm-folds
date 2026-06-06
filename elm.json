@@ -1,7 +1,7 @@
 {
     "type": "package",
-    "name": "replaceme/replaceme",
-    "summary": "REPLACEME",
+    "name": "pete-murphy/elm-folds",
+    "summary": "Composable left folds",
     "license": "MIT",
     "version": "1.0.0",
     "exposed-modules": [

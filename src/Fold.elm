@@ -12,7 +12,8 @@ module Fold exposing
     , elem, notElem
     , map, map2, map3, map4, map5, map6, andMap
     , extend
-    , groupBy, prefilter
+    , groupBy, prefilter, premap
+    , distributed
     )
 
 {-| This module provides a type [`Fold`](#Fold) for left folds, which can be
@@ -73,6 +74,10 @@ Numerically stable single-pass statistics, computed via
 @docs average
 @docs mean, variance, standardDeviation
 @docs sampleVariance, sampleStandardDeviation
+
+
+# Membership
+
 @docs elem, notElem
 
 
@@ -80,7 +85,8 @@ Numerically stable single-pass statistics, computed via
 
 @docs map, map2, map3, map4, map5, map6, andMap
 @docs extend
-@docs groupBy, prefilter
+@docs groupBy, prefilter, premap
+@docs distributed
 
 -}
 
@@ -577,3 +583,44 @@ prefilter pred f =
                 s
     in
     unfoldFold f maybeStep extract
+
+
+{-| `premap f fold` returns a new `Fold` which applies `f` to each input
+before handing it to `fold`. This is the contravariant map on the input side
+(compare with [`map`](#map), which transforms the output).
+
+    sumOfSquares : Fold Float Float
+    sumOfSquares =
+        premap (\x -> x * x) sum
+
+-}
+premap : (a -> b) -> Fold b r -> Fold a r
+premap f (Fold o) =
+    Fold
+        { step = \a -> premap f (o.step (f a))
+        , finish = \_ -> o.finish ()
+        }
+
+
+{-| Lift a `Fold` so it consumes a stream of functions `e -> a` and produces a
+function `e -> b`. At every point `e`, the resulting function is the value the
+original fold would have produced from the stream of `a`s obtained by applying
+each input function to `e`.
+
+This is the function-`Distributive` specialisation of the `distributed`
+combinator from Haskell's `foldl` and PureScript's `purescript-folds`.
+
+    foldList [ \e -> e + 1, \e -> e * 2, \e -> e - 3 ] (distributed sum) 10
+    --> 30  -- == 11 + 20 + 7
+
+-}
+distributed : Fold a b -> Fold (e -> a) (e -> b)
+distributed fold0 =
+    let
+        go s =
+            Fold
+                { step = \g -> go (\e -> stepFold (g e) (s e))
+                , finish = \_ -> \e -> extract (s e)
+                }
+    in
+    go (\_ -> fold0)
