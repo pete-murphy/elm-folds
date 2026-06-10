@@ -1,6 +1,6 @@
 {
   "name": "elm-folds",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Composable left folds",
   "devDependencies": {
     "elm": "^0.19.1-6",
